@@ -1,0 +1,20 @@
+# Flutter
+build/
+.dart_tool/
+.flutter-plugins-dependencies
+.metadata
+
+# IDE
+.idea/
+*.iml
+
+# APK & native
+*.apk
+*.so
+
+# Python
+venv/
+
+# Secrets
+.env
+firebase-adminsdk.json

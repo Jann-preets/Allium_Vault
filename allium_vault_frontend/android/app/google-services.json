@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "138311975282",
+    "project_id": "alliumvault",
+    "storage_bucket": "alliumvault.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:138311975282:android:195546213e1e6602469deb",
+        "android_client_info": {
+          "package_name": "com.example.allium_vault_frontend"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD1nRZXIZ7nPkaHAMB_3VjJi4ztJ4rbtLE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
