@@ -59,14 +59,14 @@ git clone [https://github.com/your-username/Allium_Vault.git](https://github.com
 cd Allium_Vault/allium_vault_final
 
 # Create and activate a virtual environment
-python -m venv venv
+python3 -m venv venv
 source venv/bin/activate  # On Windows use: venv\Scripts\activate
 
 # Install dependencies
-pip install -r requirements.txt
+pip3 install -r requirements.txt
 
 # Run the Flask development server
-python app.py
+python3 app.py
 
 ```
 
