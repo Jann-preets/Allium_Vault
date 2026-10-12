@@ -4,6 +4,8 @@ from datetime import datetime, timedelta
 import certifi
 import firebase_admin
 from firebase_admin import credentials, messaging
+import os
+import json
 
 # --- Configuration ---
 app = Flask(__name__)
@@ -20,13 +22,23 @@ device_tokens_collection = db.device_tokens
 control_state = {"fan_mode": "AUTO"} 
 
 # --- Firebase Setup ---
-try:
-    cred = credentials.Certificate("firebase-adminsdk.json")
-    firebase_admin.initialize_app(cred)
-    print("Firebase Admin SDK initialized successfully.")
-except Exception as e:
-    print(f"WARNING: Firebase not initialized. Error: {e}")
+# Check for Environment Variable first (for Render)
+firebase_json_env = os.environ.get("FIREBASE_CREDENTIALS_JSON")
 
+try:
+    if firebase_json_env:
+        cred_dict = json.loads(firebase_json_env)
+        cred = credentials.Certificate(cred_dict)
+        firebase_admin.initialize_app(cred)
+        print("Firebase initialized from environment variable!")
+    elif os.path.exists("firebase-adminsdk.json"):
+        cred = credentials.Certificate("firebase-adminsdk.json")
+        firebase_admin.initialize_app(cred)
+        print("Firebase initialized from local file!")
+    else:
+        print("WARNING: Firebase credentials not found.")
+except Exception as e:
+    print(f"Error initializing Firebase: {e}")
 # --- Helper Functions ---
 
 def send_fcm_notification(title, body, status):
