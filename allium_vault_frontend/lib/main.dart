@@ -56,7 +56,7 @@ class VaultState with ChangeNotifier {
   String get fanMode => _fanMode;
   EnergyReport get energyReport => _energyReport;
 
-  final String _ipAddress = "192.168.1.6";
+  final String _ipAddress = "192.168.1.12";
 
   Future<void> fetchData() async {
     await Future.wait([

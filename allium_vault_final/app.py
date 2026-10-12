@@ -7,8 +7,8 @@ from firebase_admin import credentials, messaging
 
 # --- Configuration ---
 app = Flask(__name__)
-connection_string = "mongodb+srv://jp7737_db_user:Simbajuly22@cluster0.5umvusl.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
-client = MongoClient(connection_string, tlsCAFile=certifi.where())
+connection_string = "mongodb+srv://jp7737_db_user:janar29@cluster0.5umvusl.mongodb.net/?appName=Cluster0"
+client = MongoClient(connection_string,tls=True, tlsCAFile=certifi.where())
 db = client.allium_vault_db
 
 readings_collection = db.readings
@@ -31,28 +31,75 @@ except Exception as e:
 
 def send_fcm_notification(title, body, status):
     tokens = [doc['token'] for doc in device_tokens_collection.find()]
-    if not tokens: return
-    message = messaging.MulticastMessage(
-        notification=messaging.Notification(title=title, body=body),
-        data={'status': status}, tokens=tokens)
-    messaging.send_each_for_multicast(message)
+    # Deduplicate tokens
+    tokens = list(set(tokens))
+    if not tokens:
+        print("DEBUG: No device tokens found in database.")
+        return
+    
+    print(f"DEBUG: Sending FCM notification to {len(tokens)} token(s)...")
+    try:
+        message = messaging.MulticastMessage(
+            notification=messaging.Notification(title=title, body=body),
+            data={'status': status},
+            tokens=tokens
+        )
+        response = messaging.send_each_for_multicast(message)
+        print(f"DEBUG: FCM Response -> Success: {response.success_count}, Failure: {response.failure_count}")
+        
+        for idx, resp in enumerate(response.responses):
+            if not resp.success:
+                print(f"DEBUG: Token {tokens[idx]} failed: {resp.exception}")
+                # Optional: remove dead tokens from DB
+                if resp.exception.code in ['not-registered', 'invalid-argument']:
+                    device_tokens_collection.delete_one({"token": tokens[idx]})
+    except Exception as e:
+        print(f"ERROR: Failed to send multicast message: {e}")
+# --- Storage condition thresholds (ambient onion storage in godowns / warehouses) ---
+TEMP_WARNING_C = 30      # above this: Warning
+TEMP_DANGER_C = 35       # above this: Danger
+HUMIDITY_WARNING = 75    # above this: Warning
+HUMIDITY_DANGER = 85     # above this: Danger
+
 
 def run_realtime_sensor_analysis(current_data):
+    """
+    Analyzes a single, real-time sensor reading and sends an alert if needed.
+
+    Healthy : temperature <= 30 C and humidity <= 75 %
+    Warning : temperature > 30 C or humidity > 75 %
+    Danger  : temperature > 35 C or humidity > 85 %
+    """
     try:
-        temp = current_data.get('temperature', 0)
-        humidity = current_data.get('humidity', 0)
+        temp = current_data.get('temperature')
+        humidity = current_data.get('humidity')
+
+        # A missing reading is a sensor/data problem, not a "healthy" reading
+        if temp is None or humidity is None:
+            print("DEBUG: Missing temperature or humidity in reading")
+            return "Error"
+
+        temp = float(temp)
+        humidity = float(humidity)
+
         status = "Healthy"
-        if humidity > 85 and temp > 32: status = "Danger"
-        elif humidity > 80 and temp > 30: status = "Warning"
-        
+        if temp > TEMP_DANGER_C or humidity > HUMIDITY_DANGER:
+            status = "Danger"
+        elif temp > TEMP_WARNING_C or humidity > HUMIDITY_WARNING:
+            status = "Warning"
+
+        print(f"DEBUG: Real-time sensor analysis -> Temp: {temp}, Humidity: {humidity}, Status: {status}")
+
         if status != "Healthy":
             send_fcm_notification(
-                f"AI Alert: {status}!",
-                f"Hum: {humidity}%, Temp: {temp}°C. Check your onions.",
+                f"{'🔴' if status == 'Danger' else '🟡'} Storage Alert: {status} Condition!",
+                f"Humidity: {humidity}%, Temperature: {temp}°C. Please check your stock.",
                 status
             )
         return status
-    except Exception as e: return "Error"
+    except Exception as e:
+        print(f"Error during real-time analysis: {e}")
+        return "Error"
 
 # --- API Endpoints ---
 
@@ -116,13 +163,26 @@ def get_latest_data():
     return jsonify({"status": "No Data", "temperature": 0, "humidity": 0})
 
 @app.route('/api/register-device', methods=['POST'])
+@app.route('/api/register-device', methods=['POST'])
 def register_device():
-    token = request.get_json().get('token')
-    if token:
-        device_tokens_collection.update_one({'token': token}, {'$set': {'timestamp': datetime.now()}}, upsert=True)
+    try:
+        data = request.get_json()
+        token = data.get('token')
+        if not token:
+            return jsonify({"error": "No token provided"}), 400
+        
+        # Check if token already exists, if not insert it
+        existing = device_tokens_collection.find_one({"token": token})
+        if not existing:
+            device_tokens_collection.insert_one({
+                "token": token,
+                "timestamp": datetime.now()
+            })
+            print(f"DEBUG: Registered new device token -> {token}")
+        
         return jsonify({"status": "success"}), 200
-    return jsonify({"error": "Token missing"}), 400
-
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
 @app.route('/api/stock', methods=['POST'])
 def add_stock():
     data = request.get_json()
