@@ -206,6 +206,31 @@ def add_stock():
 def get_stock_history():
     history = list(stock_history_collection.find({}, {'_id': 0}).sort("arrival_date", DESCENDING))
     return jsonify(history)
+@app.route('/api/send-notification', methods=['POST'])
+def send_notification():
+    data = request.get_json()
+    fcm_token = data.get('token')
+    title = data.get('title', 'Allium Vault Alert')
+    body = data.get('body', 'Your system update is ready.')
+
+    if not fcm_token:
+        return jsonify({"error": "FCM token is required"}), 400
+
+    try:
+        # Construct the message payload
+        message = messaging.Message(
+            notification=messaging.Notification(
+                title=title,
+                body=body,
+            ),
+            token=fcm_token,
+        )
+        
+        # Send the message via Firebase
+        response = messaging.send(message)
+        return jsonify({"success": True, "message_id": response}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
